@@ -87,8 +87,8 @@ jobs:
             cd /home/$USER/app-asset-alert
             
             # 이전 서비스 중지 및 새 서비스 시작
-            docker-compose -f asset-alert-docker-compose.yml down
-            docker-compose -f asset-alert-docker-compose.yml up -d --build
+            docker-compose -f docker-compose.yml down
+            docker-compose -f docker-compose.yml up -d --build
             
             # 로그 확인
             sleep 5
