@@ -1,0 +1,116 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.4.2'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    set('springCloudVersion', "2024.0.0")
+}
+
+dependencies {
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    testImplementation 'io.projectreactor:reactor-test'
+
+    // 편의성 도구 devtool, lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    // 스프링시큐리티
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.security:spring-security-crypto'
+
+    // JWT 처리, 버전은 참고
+    implementation 'io.jsonwebtoken:jjwt-api:0.11.2'
+    implementation 'io.jsonwebtoken:jjwt-impl:0.11.2'
+    implementation 'io.jsonwebtoken:jjwt-jackson:0.11.2'
+
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+    // mysql -> 회원정보 저장 (이메일, 아이디, 비번, 이름(?),..)
+    runtimeOnly 'com.mysql:mysql-connector-j'
+    // jpa
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    // 유레카 클라이언트
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+
+    // redis, 토큰 저장 및 조회
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // 리액티브 웹(spring-boot-starter-webflux) <-> MVC 웹(spring-boot-starter-web)
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // 향후 추가
+    // kafka : 주문, 결제 등등 이벤트 발생시 송수신 처리 등등 비동기 구성 -> 메세징 서비스
+    //         서비스간 통신용도
+    implementation 'org.apache.kafka:kafka-streams'
+    implementation 'org.springframework.kafka:spring-kafka'
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
+
+    // (*)Jackson | gson : JSON 데이터 처리 -> 데이터 형태 파싱
+
+    // actuator
+    // 모니터링, 매트릭수집(성능측정), 환경정보, 로그관리, 헬스 체크,..
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // Fegin Client
+    // Spring Cloud에서 제공하는 http 클라이언트
+    // restful client 호출때 간편 사용을 위한 서포트 라이브러리
+    // msa 내부에서 서비스간 통신시 활용됨(많이 사용)
+
+    // 로그 -> 롬복 지원 가능 -> AOP 연동
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.projectreactor:reactor-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    // 필요에 따라 추가
+    testImplementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    implementation 'org.java-websocket:Java-WebSocket:1.5.3'
+
+    // Spring Boot WebSocket 의존성
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+    // JSON 처리 (Jackson ObjectMapper, MarketData(serialization/deserialization)용)
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    //csv 및 sql처리
+    implementation 'mysql:mysql-connector-java:8.0.33'
+    implementation 'com.opencsv:opencsv:5.5.2'
+}
+
+
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

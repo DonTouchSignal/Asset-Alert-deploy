@@ -1,0 +1,23 @@
+version: '3.7'
+services:
+  msa-asset:
+    build: ./msa-asset
+    ports:
+      - "8082:8082"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://34.210.11.121:8761/eureka/
+    networks:
+      - msa-network
+
+  msa-sb-alert:
+    build: ./msa-sb-alert
+    ports:
+      - "8083:8083"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://34.210.11.121:8761/eureka/
+    networks:
+      - msa-network
+
+networks:
+  msa-network:
+    driver: bridge
