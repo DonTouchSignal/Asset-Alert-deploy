@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import jakarta.websocket.*;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -290,7 +291,7 @@ public class UpbitClient {
             }
 
             // 변동률 ±5% 이상일 때 Kafka 알림 전송
-            if (Math.abs(changeRate) >= 5.0) {
+            if (Math.abs(changeRate)*100 >= 5.0) {
                 kafkaProducerClient.sendMarketData(marketData);
                 log.info("🚀 Kafka 알림 발송: {}", marketData);
             }
@@ -458,6 +459,93 @@ public class UpbitClient {
         public WebSocketRequest(String type, List<String> codes) {
             this.type = type;
             this.codes = codes;
+        }
+    }
+
+
+    @PreDestroy
+    public void cleanup() {
+        if (scheduler != null) {
+            scheduler.shutdownNow();
+        }
+        if (webSocketSession != null && webSocketSession.isOpen()) {
+            try {
+                webSocketSession.close();
+            } catch (IOException e) {
+                log.error("WebSocket 종료 실패", e);
+            }
+        }
+    }
+
+
+    public void fetchBatchTickerData(String markets) {
+        try {
+            JsonNode response = webClient.get()
+                    .uri("/ticker?markets=" + markets)
+                    .retrieve()
+                    .bodyToMono(JsonNode.class)
+                    .block();
+
+            if (response != null && response.isArray()) {
+                for (JsonNode ticker : response) {
+                    String symbol = ticker.get("market").asText();
+                    double tradePrice = ticker.get("trade_price").asDouble();
+                    double changeRate = ticker.get("signed_change_rate").asDouble();
+
+                    // Redis에 저장
+                    redisTemplate.opsForValue().set("stock_prices:" + symbol,
+                            String.valueOf(tradePrice), 30, TimeUnit.MINUTES);
+                    redisTemplate.opsForValue().set("stock_changes:" + symbol,
+                            String.valueOf(changeRate), 30, TimeUnit.MINUTES);
+
+                    log.info("📊 REST API 데이터 저장: {} 가격: {}, 변동률: {}",
+                            symbol, tradePrice, changeRate);
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ REST API 배치 데이터 가져오기 실패: {}", e.getMessage());
+        }
+    }
+
+
+    public void subscribeToSingleSymbol(String symbol) {
+        try {
+            if (webSocketSession != null && webSocketSession.isOpen()) {
+                String subscribeMessage = objectMapper.writeValueAsString(List.of(
+                        new WebSocketRequest("single-" + symbol),
+                        new WebSocketRequest("ticker", List.of(symbol))
+                ));
+
+                log.info("📡 단일 종목 WebSocket 구독 요청: {}", symbol);
+                sendMessage(subscribeMessage);
+            } else {
+                log.warn("⚠️ WebSocket 세션이 닫혀 있음. 단일 종목 구독 불가: {}", symbol);
+            }
+        } catch (JsonProcessingException e) {
+            log.error("❌ JSON 직렬화 오류: {}", e.getMessage());
+        }
+    }
+
+    public void unsubscribeFromSymbol(String symbol) {
+        try {
+            if (webSocketSession != null && webSocketSession.isOpen()) {
+                // 업비트 웹소켓에서는 명시적인 구독 해제 메시지가 없으므로
+                // 이전에 사용한 ticket으로 새 메시지를 보내되 codes는 빈 배열로 설정
+                String unsubscribeMessage = objectMapper.writeValueAsString(List.of(
+                        new WebSocketRequest("unsub-" + symbol),
+                        new WebSocketRequest("ticker", Collections.emptyList())
+                ));
+
+                log.info("🔕 단일 종목 WebSocket 구독 해제 요청: {}", symbol);
+                sendMessage(unsubscribeMessage);
+
+                // 필요시 내부 관리 상태 업데이트
+                // subscribedSymbols.remove(symbol);
+            } else {
+                log.warn("⚠️ WebSocket 세션이 닫혀 있음. 구독 해제 메시지 전송 불가: {}", symbol);
+            }
+        } catch (JsonProcessingException e) {
+            log.error("❌ JSON 직렬화 오류: {}", e.getMessage());
         }
     }
 }

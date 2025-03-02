@@ -8,6 +8,7 @@ import com.example.msaasset.repository.StockRepository;
 import com.example.msaasset.repository.TargetPriceRepository;
 import com.example.msaasset.repository.WatchListRepository;
 import com.example.msaasset.websocket.StockPriceWebSocketHandler;
+import com.example.msaasset.websocket.WebSocketSubscriptionManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
@@ -37,6 +38,8 @@ public class StockService {
     private final TargetPriceRepository targetPriceRepository;
     private final StringRedisTemplate redisTemplate;
     private final StockPriceWebSocketHandler webSocketHandler;
+    private final WebSocketSubscriptionManager subscriptionManager;
+
 
     @PostConstruct
     public void initializeStockDataFromUpbit() {
@@ -87,6 +90,17 @@ public class StockService {
 
 
     /// 리뉴얼
+    ///
+    ///
+    private double safeParseDouble(String value) {
+        try {
+            return (value != null && !value.equalsIgnoreCase("null") && !value.isEmpty()) ? Double.parseDouble(value) : 0.0;
+        } catch (NumberFormatException e) {
+            log.warn("🚨 숫자 변환 오류: {}", value);
+            return 0.0;
+        }
+    }
+
 
 
     //종목검색 리뉴얼
@@ -102,8 +116,8 @@ public class StockService {
                     stock.getSymbol(),
                     stock.getKoreanName(),  //
                     stock.getEnglishName(), //
-                    price != null ? Double.parseDouble(price) : 0.0,
-                    changeRate != null ? Double.parseDouble(changeRate) : 0.0
+                    safeParseDouble(price),
+                    safeParseDouble(changeRate)
             );
         }).collect(Collectors.toList());
     }
@@ -212,11 +226,13 @@ public class StockService {
 
     //  특정 종목의 현재가 & 변동률 조회- 종목 상세정보 리뉴얼
     public StockResponseDTO getStockDetail(String symbol) {
-        //  Redis에서 최신 가격 및 변동률 조회
+        // 종목 상세 페이지 접근 시 해당 종목 구독
+        subscriptionManager.subscribeToSymbol(symbol);
+
+        // 기존 로직
         String price = redisTemplate.opsForValue().get("stock_prices:" + symbol);
         String changeRate = redisTemplate.opsForValue().get("stock_changes:" + symbol);
 
-        //  DB에서 종목 기본 정보 가져오기
         Stock stock = stockRepository.findBySymbol(symbol)
                 .orElseThrow(() -> new RuntimeException("해당 종목을 찾을 수 없습니다: " + symbol));
 
@@ -367,7 +383,7 @@ public class StockService {
 
 
     // redis->db 저장....필요한가
-    @Scheduled(fixedRate = 300000) // 5분마다 실행
+    @Scheduled(fixedRate = 30000) // 5분마다 실행
     public void saveRedisDataToDatabase() {
         List<Stock> assets = stockRepository.findAll();
 
@@ -376,6 +392,10 @@ public class StockService {
                 // Redis에서 가격 및 변동률 가져오기
                 String priceStr = redisTemplate.opsForValue().get("stock_prices:" + asset.getSymbol());
                 String changeRateStr = redisTemplate.opsForValue().get("stock_changes:" + asset.getSymbol());
+
+                double price = safeParseDouble(priceStr);
+                double changeRate = safeParseDouble(changeRateStr);
+
                 String volumeStr = redisTemplate.opsForValue().get("stock_volumes:" + asset.getSymbol());
 
                 if (priceStr != null && changeRateStr != null) {
@@ -442,7 +462,35 @@ public class StockService {
     }
 
 
-    @Scheduled(fixedRate = 5000) // 5초마다 가격 업데이트하고 웹소켓
+    @Scheduled(fixedRate = 30000) // 30초마다 실행
+    public void updateCryptoDataFromRestApi() {
+        log.info("🔄 암호화폐 데이터 REST API 업데이트 시작");
+
+        // 모든 암호화폐 심볼 가져오기 (KRW 마켓만)
+        List<String> cryptoSymbols = stockRepository.findAll().stream()
+                .filter(stock -> stock.getSymbol().contains("-"))
+                .map(Stock::getSymbol)
+                .collect(Collectors.toList());
+
+        // 50개씩 그룹화하여 API 호출
+        for (int i = 0; i < cryptoSymbols.size(); i += 50) {
+            List<String> batch = cryptoSymbols.subList(i, Math.min(i + 50, cryptoSymbols.size()));
+            String markets = String.join(",", batch);
+
+            try {
+                // 업비트 REST API 호출
+                upbitClient.fetchBatchTickerData(markets);
+                Thread.sleep(500); // API 제한 방지
+            } catch (Exception e) {
+                log.error("❌ 암호화폐 데이터 업데이트 실패: {}", e.getMessage());
+            }
+        }
+
+        log.info("✅ 암호화폐 데이터 REST API 업데이트 완료");
+    }
+
+
+    @Scheduled(fixedRate = 10000) // 5초마다 가격 업데이트하고 웹소켓
     public void updateStockPrices() {
         // 카테고리 ID가 1(국내) 또는 2(해외)인 주식만 조회
         List<Stock> stocks = stockRepository.findByCategoryIdIn(Arrays.asList(1, 2));

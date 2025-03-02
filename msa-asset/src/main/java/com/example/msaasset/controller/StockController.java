@@ -4,8 +4,11 @@ import com.example.msaasset.dto.StockResponseDTO;
 import com.example.msaasset.dto.TargetPriceDTO;
 import com.example.msaasset.entity.TargetPriceCondition;
 import com.example.msaasset.service.StockService;
+import com.example.msaasset.websocket.WebSocketSubscriptionManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.actuate.autoconfigure.metrics.MetricsProperties;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -21,6 +24,7 @@ import java.util.Set;
 public class StockController {
 
     private final StockService stockService;
+    private final WebSocketSubscriptionManager subscriptionManager;
 
     // 종목 검색 API (키워드로 검색)
     @GetMapping("/search")
@@ -97,4 +101,12 @@ public class StockController {
             @RequestParam String symbol) {
         stockService.removeTargetPrice(userEmail, symbol);
     }
+
+    @GetMapping("/unsubscribe/{symbol}")
+    public ResponseEntity<Void> unsubscribeFromSymbol(@PathVariable String symbol) {
+        subscriptionManager.unsubscribeFromSymbol(symbol);
+        return ResponseEntity.ok().build();
+    }
+
+
 }
