@@ -112,5 +112,8 @@ AWS EC2 인스턴스에 Docker Compose를 통해 배포되며, GitHub Actions �
 시스템은 Docker Compose를 통해 관리되며, 각 서비스는 독립적인 컨테이너로 실행됩니다. 서비스 로그는 Docker logs 명령을 통해 확인할 수 있으며, 배포 과정에서 자동으로 수집됩니다. GitHub Actions 워크플로우는 코드 변경 시 자동으로 CI/CD 파이프라인을 실행하여 최신 버전을 배포합니다.
 
 
+## 상세 API명세(notion)
+https://cooked-hockey-a64.notion.site/DonTouchSignal-1abdc215b6d580fe81d9ff09ffedc68c?pvs=4
+
 
 
