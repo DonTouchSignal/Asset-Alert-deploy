@@ -6,7 +6,7 @@
 ### 종목 서비스
 * **역할**: 주식 및 가상화폐 종목 검색, 상세 조회, 관심 종목 관리
 * **포트**: 8082
-* **기술**: Spring Boot, JPA, Redis, WebSocket
+* **기술**: Spring Boot, JPA, Redis, WebSocket, Kafka 이벤트 처리
 
 ### 알림 서비스
 * **역할**: 가격 변동 알림, 목표 가격 알림, 알림 내역 관리
